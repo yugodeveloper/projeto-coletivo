@@ -5,26 +5,31 @@ export function middleware(req: NextRequest) {
   // Verifica se a rota acessada começa com /admin
   if (req.nextUrl.pathname.startsWith('/admin')) {
     
-    // Pega o cabeçalho de autorização que o navegador envia
     const authHeader = req.headers.get('authorization');
 
     if (authHeader) {
-      // O formato vem como "Basic dXN1YXJpbzpzZW5oYQ==" (Base64)
-      const authValue = authHeader.split(' ')[1];
-      // Decodifica o Base64 para texto normal
-      const [user, pwd] = atob(authValue).split(':');
+      try {
+        // Tenta decodificar a senha. Se der erro aqui, ele pula pro catch
+        // em vez de quebrar o site inteiro (Erro 500)
+        const authValue = authHeader.split(' ')[1];
+        if (!authValue) throw new Error("Header inválido");
 
-      // Verifica se bate com as variáveis de ambiente
-      if (
-        user === process.env.ADMIN_USER && 
-        pwd === process.env.ADMIN_PASSWORD
-      ) {
-        // Se bateu, deixa passar!
-        return NextResponse.next();
+        const [user, pwd] = atob(authValue).split(':');
+
+        // Verifica as senhas
+        if (
+          user === process.env.ADMIN_USER && 
+          pwd === process.env.ADMIN_PASSWORD
+        ) {
+          return NextResponse.next();
+        }
+      } catch (error) {
+        // Se a decodificação falhar, apenas ignora e deixa cair no 401 abaixo
+        console.error("Erro de autenticação:", error);
       }
     }
 
-    // Se não tiver cabeçalho ou a senha estiver errada, bloqueia e pede senha
+    // Bloqueia e pede senha
     return new NextResponse('Autenticação Necessária', {
       status: 401,
       headers: {
@@ -33,11 +38,9 @@ export function middleware(req: NextRequest) {
     });
   }
 
-  // Para qualquer outra rota (/, /campaign, etc), deixa passar livre
   return NextResponse.next();
 }
 
-// Configura quais caminhos o middleware vai "vigiar"
 export const config = {
   matcher: '/admin/:path*',
 };
