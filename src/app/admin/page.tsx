@@ -1,106 +1,100 @@
-import { supabase } from '@/lib/supabase';
-import { Order, OrderItem } from '@/types';
-import StatusBadge from '@/components/admin/StatusBadge';
+import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'; // Sempre dados frescos
+export const dynamic = 'force-dynamic'
 
 export default async function AdminPage() {
-  // Busca Pedidos + Itens + Variação + Nome do Produto
-  // Ordenado do mais recente para o mais antigo
+  const supabase = await createClient()
+
+  // 1. Verifica login
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return redirect('/login')
+
+  // 2. Busca Pedidos (Ajustado para o banco atual)
   const { data: orders, error } = await supabase
     .from('orders')
     .select(`
       *,
-      order_items (
-        quantity,
-        unit_price,
-        variant:product_variants (
-          name,
-          product:products (
-            name
-          )
-        )
+      campaigns (
+        title,
+        image_url
       )
     `)
-    .order('created_at', { ascending: false });
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
 
   if (error) {
-    return <div className="p-8 text-red-600">Erro ao carregar pedidos: {error.message}</div>;
+    console.error("Erro no admin:", error)
+    return <div className="p-8 text-red-600">Erro ao carregar pedidos.</div>
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-6xl mx-auto">
-        <header className="flex justify-between items-center mb-8">
+    <div className="min-h-screen bg-gray-50 p-6 md:p-12">
+      <div className="max-w-5xl mx-auto">
+        
+        {/* Cabeçalho */}
+        <header className="flex flex-col md:flex-row justify-between items-end mb-8 border-b border-gray-200 pb-6 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Painel do Organizador</h1>
-            <p className="text-gray-500">Gerencie os pedidos da rodada.</p>
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Meus Pedidos 📦</h1>
+            <p className="text-gray-500 mt-1">Gerencie suas participações nas compras coletivas.</p>
           </div>
-          <div className="bg-white px-4 py-2 rounded shadow text-sm">
-            Total Pedidos: <strong>{orders?.length || 0}</strong>
+          <div className="bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm text-sm font-medium text-gray-600">
+            Você tem <span className="text-green-600 font-bold">{orders?.length || 0}</span> pedidos
           </div>
         </header>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-gray-600 text-sm border-b border-gray-200">
-                <th className="p-4 font-medium">Data</th>
-                <th className="p-4 font-medium">Cliente</th>
-                <th className="p-4 font-medium">WhatsApp</th>
-                <th className="p-4 font-medium">Pedido (Itens)</th>
-                <th className="p-4 font-medium">Total</th>
-                <th className="p-4 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {orders?.map((order: any) => ( // Usando any temporário aqui só no map pra evitar conflito de tipagem profunda aninhada
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="p-4 text-sm text-gray-500">
-                    {new Date(order.created_at).toLocaleDateString()} <br/>
-                    {new Date(order.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </td>
-                  <td className="p-4 font-medium text-gray-900">
-                    {order.customer_name}
-                  </td>
-                  <td className="p-4 text-gray-600 text-sm">
-                    {order.customer_phone}
-                  </td>
-                  <td className="p-4 text-sm">
-                    <ul className="space-y-1">
-                      {order.order_items?.map((item: any, index: number) => (
-                        <li key={index} className="flex items-center gap-2">
-                          <span className="font-bold text-gray-800">{item.quantity}x</span>
-                          <span className="text-gray-600">
-                            {item.variant?.product?.name} ({item.variant?.name})
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </td>
-                  <td className="p-4 font-bold text-green-700">
-                    R$ {order.total_amount}
-                  </td>
-                  <td className="p-4">
-  <StatusBadge 
-    orderId={order.id} 
-    currentStatus={order.status} 
-  />
-</td>
-                </tr>
-              ))}
+        {/* Lista de Pedidos */}
+        <div className="space-y-4">
+          {orders?.map((order: any) => (
+            <div key={order.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-6 hover:shadow-md transition-shadow">
               
-              {orders?.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
-                    Nenhum pedido encontrado ainda.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              {/* Ícone */}
+              <div className="w-16 h-16 bg-green-50 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl">
+                <span>🛒</span>
+              </div>
+
+              {/* Info Principal */}
+              <div className="flex-grow text-center md:text-left">
+                <h3 className="font-bold text-lg text-gray-900">
+                  {order.campaigns?.title || 'Produto não encontrado'}
+                </h3>
+                <div className="text-sm text-gray-500 mt-1 flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+                  <span>📅 {new Date(order.created_at).toLocaleDateString()}</span>
+                  <span className="hidden md:inline">•</span>
+                  <span>Quantidade: {order.quantity} un</span>
+                </div>
+              </div>
+
+              {/* Status e Preço */}
+              <div className="flex flex-col items-center md:items-end min-w-[140px] gap-2">
+                <span className={`
+                  px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
+                  ${order.status === 'pendente' ? 'bg-yellow-100 text-yellow-800' : ''}
+                  ${order.status === 'pago' ? 'bg-green-100 text-green-800' : ''}
+                `}>
+                  {order.status}
+                </span>
+                
+                <span className="text-xl font-bold text-gray-900">
+                  R$ {order.total_price.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          {/* Estado Vazio */}
+          {(!orders || orders.length === 0) && (
+            <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">Nenhum pedido ainda</h3>
+              <p className="text-gray-500 mb-6">Seu histórico aparecerá aqui.</p>
+              <Link href="/" className="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full">
+                Começar a Comprar
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>
-  );
+  )
 }

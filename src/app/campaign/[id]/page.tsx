@@ -1,112 +1,110 @@
-import { supabase } from '@/lib/supabase';
-import { notFound } from 'next/navigation';
-import Image from 'next/image';
-import AddToCartButton from '@/components/campaign/AddToCartButton';
-import FloatingCart from '@/components/ui/FloatingCart';
-import { Product, ProductVariant } from '@/types';
+import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
+import { joinCampaign } from '../actions'
 
-export const dynamic = 'force-dynamic';
-
-// ATENÇÃO: Mudança para Next.js 15
-// params agora é definido como uma Promise
-interface PageProps {
-  params: Promise<{ id: string }>
-}
-
-export default async function CampaignPage(props: PageProps) {
-  // 1. AWAIT: Extraímos o ID da Promise antes de usar
-  const params = await props.params;
-  const { id } = params;
-
-  // 2. Buscar dados da Campanha usando o 'id' já processado
-  const { data: campaign } = await supabase
+export default async function CampaignPage({ params }: { params: Promise<{ id: string }> }) {
+  // 1. O await obrigatório para o Next.js novo
+  const { id } = await params
+  
+  const supabase = await createClient()
+  
+  // 2. Busca os dados (incluindo a image_url)
+  const { data: campaign, error } = await supabase
     .from('campaigns')
-    .select(`*, store:stores(*)`)
-    .eq('id', id) // <--- Aqui usamos a variável 'id' limpa
-    .single();
+    .select('*')
+    .eq('id', id)
+    .single()
 
-  if (!campaign) return notFound();
+  if (error || !campaign) {
+    notFound()
+  }
 
-  // 3. Buscar Produtos
-  const { data: products } = await supabase
-    .from('products')
-    .select(`*, variants:product_variants(*)`)
-    .eq('store_id', campaign.store_id);
+  const endDate = new Date(campaign.end_date)
+  const now = new Date()
+  const daysLeft = Math.ceil(Math.abs(endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+  const joinAction = joinCampaign.bind(null, campaign.id, campaign.price)
 
   return (
-    <div className="min-h-screen bg-white pb-24">
-      
-      {/* Cabeçalho */}
-      <div className="bg-slate-900 text-white py-12 px-6">
-        <div className="max-w-3xl mx-auto">
-          <p className="text-slate-400 text-sm uppercase tracking-wider mb-2">
-            Organizado por {campaign.store?.name}
-          </p>
-          <h1 className="text-3xl md:text-4xl font-bold mb-4">{campaign.title}</h1>
-          <div className="flex items-center gap-4 text-sm">
-            <span className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full">
-              Status: {campaign.status}
-            </span>
-            <span>Encerra em: {new Date(campaign.ends_at).toLocaleDateString()}</span>
-          </div>
-        </div>
+    <div className="max-w-5xl mx-auto pb-20">
+      {/* Breadcrumb */}
+      <div className="mb-6 text-sm text-gray-500 flex items-center gap-2">
+        <Link href="/" className="hover:text-green-700 transition-colors">Home</Link> 
+        <span>/</span>
+        <span className="text-gray-900 font-medium truncate">{campaign.title}</span>
       </div>
 
-      {/* Lista de Produtos */}
-      <main className="max-w-3xl mx-auto py-10 px-6">
-        <h2 className="text-xl font-bold mb-6 text-gray-800">Escolha seus cafés</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
         
-        <div className="space-y-6">
-          {products?.map((product: Product) => (
-            <div key={product.id} className="flex gap-4 border-b border-gray-100 pb-6">
-              
-              <div className="w-24 h-24 bg-gray-200 rounded-lg overflow-hidden shrink-0 relative">
-                <Image 
-                  src={product.image_url} 
-                  alt={product.name} 
-                  width={200}
-                  height={200}
-                  className="object-cover w-full h-full"
-                />
-              </div>
-
-              <div className="flex-1">
-                <h3 className="font-bold text-lg text-gray-900">{product.name}</h3>
-                <p className="text-gray-500 text-sm mb-3">{product.description}</p>
-
-                <div className="space-y-2">
-                  {product.variants?.map((variant: ProductVariant) => (
-                    <div key={variant.id} className="flex items-center justify-between p-3 border rounded-lg hover:border-blue-500 transition-colors group">
-                      <div>
-                        <span className="font-medium text-gray-700">{variant.name}</span>
-                        <span className="text-xs text-gray-400 block">
-                           {variant.weight_g}g
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-gray-900">
-                          R$ {variant.price}
-                        </span>
-                        
-                       <AddToCartButton 
-  campaignId={campaign.id} // <--- ADICIONE ESTA LINHA
-  variantId={variant.id}
-  productId={product.id}
-  name={`${product.name} - ${variant.name}`}
-  price={variant.price}
-/>
-
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* --- MUDANÇA AQUI: Imagem Grande --- */}
+        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm h-fit">
+           <div className="aspect-square bg-gray-50 rounded-2xl flex items-center justify-center text-gray-300 border-2 border-dashed border-gray-200 overflow-hidden relative">
+             {campaign.image_url ? (
+               // Se tiver imagem, mostra ela ocupando tudo
+               <img 
+                 src={campaign.image_url} 
+                 alt={campaign.title} 
+                 className="w-full h-full object-cover"
+               />
+             ) : (
+               // Senão, mostra o emoji
+               <span className="text-6xl">📦</span>
+             )}
+           </div>
         </div>
-      </main>
+        {/* ----------------------------------- */}
 
-      <FloatingCart />
+        <div className="space-y-8">
+          <div>
+            <span className="inline-block bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide mb-3">
+              Em andamento
+            </span>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-3 leading-tight">
+              {campaign.title}
+            </h1>
+            <p className="text-gray-500 text-lg leading-relaxed">
+              {campaign.description}
+            </p>
+          </div>
+
+          <div className="p-6 bg-white rounded-2xl border border-gray-200 shadow-sm">
+            <p className="text-sm text-gray-500 mb-1">Preço exclusivo do grupo:</p>
+            <div className="flex items-baseline gap-3">
+              <span className="text-5xl font-extrabold text-green-700 tracking-tight">
+                R$ {campaign.price.toFixed(2)}
+              </span>
+              <span className="text-lg text-gray-400 line-through">
+                R$ {(campaign.price * 1.3).toFixed(2)}
+              </span>
+            </div>
+            <p className="text-sm text-green-600 mt-2 font-medium flex items-center gap-1">
+              <span>🔥</span> Economia de 30% garantida
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm font-medium">
+              <span className="text-gray-700">Meta: {campaign.min_quantity} unidades</span>
+              <span className="text-green-700 font-bold">5 vendidos</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+              <div className="bg-green-500 h-3 rounded-full" style={{ width: '15%' }}></div>
+            </div>
+            <p className="text-xs text-gray-400 text-right">Encerra em {daysLeft} dias</p>
+          </div>
+
+          <form action={joinAction}>
+            <button 
+              type="submit"
+              className="w-full bg-gray-900 hover:bg-black text-white text-lg font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              Participar da Compra 🛒
+            </button>
+          </form>
+          
+        </div>
+      </div>
     </div>
-  );
+  )
 }
