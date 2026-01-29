@@ -5,32 +5,32 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 export async function joinCampaign(campaignId: string, price: number) {
+  console.log("--- INICIANDO COMPRA ---")
+  
   const supabase = await createClient()
 
-  // 1. Verifica quem é o usuário
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    // Se não estiver logado, manda pro login com uma mensagem
-    redirect('/login?message=Faça login para participar da compra')
+    redirect('/login')
   }
 
-  // 2. Cria o pedido na tabela 'orders'
   const { error } = await supabase.from('orders').insert({
     user_id: user.id,
     campaign_id: campaignId,
-    quantity: 1, // Por enquanto fixo em 1 unidade
+    quantity: 1,
     total_price: price,
     status: 'pendente'
   })
 
   if (error) {
-    console.error('Erro ao criar pedido:', error)
-    return { error: 'Erro ao processar pedido.' }
+    console.error("❌ ERRO CRÍTICO NO SUPABASE:", error)
+    // CORREÇÃO: Lançar o erro em vez de retornar objeto
+    throw new Error(`Erro ao criar pedido: ${error.message}`)
   }
 
-  // 3. Sucesso! Redireciona para uma página de "Meus Pedidos" (vamos criar já já)
-  // Por enquanto, vamos mandar de volta pra home com um aviso visual
+  console.log("✅ SUCESSO! Pedido criado.")
+
   revalidatePath('/')
-  redirect('/admin?success=true') 
+  redirect('/admin?success=true')
 }
