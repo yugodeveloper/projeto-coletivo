@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { Header } from '@/components/header'
+import Header from '@/components/header' // Sem chaves!
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'

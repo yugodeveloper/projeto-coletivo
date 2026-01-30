@@ -1,95 +1,118 @@
 'use client'
 
 import Link from 'next/link'
-import { signout } from '@/app/auth/actions'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useRouter, usePathname } from 'next/navigation'
 
-// Agora aceitamos user E profile
-export function Header({ user, profile }: { user: any, profile: any }) {
+interface HeaderProps {
+  user: any
+  profile?: any
+}
+
+export default function Header({ user, profile }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const router = useRouter()
+  const pathname = usePathname()
+  const supabase = createClient()
 
-  // Tenta pegar o nome do perfil, se não tiver, pega do login, se não, usa 'Usuário'
-  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário'
-  const initial = displayName[0].toUpperCase()
+  // Fecha menu ao navegar para qualquer outra rota
+  useEffect(() => {
+    setIsMenuOpen(false)
+  }, [pathname])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.refresh()
+  }
+
+  // Lógica para nome e iniciais
+  const fullName = user?.user_metadata?.full_name || profile?.full_name
+  const initials = fullName
+    ? fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
+    : 'U'
+
+  const firstName = fullName?.split(' ')[0] || 'Visitante'
 
   return (
-    <header className="bg-white border-b sticky top-0 z-50 shadow-sm">
+    <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="bg-green-600 text-white p-1.5 rounded-lg font-bold text-lg group-hover:bg-green-700 transition-colors">
-            PC
-          </div>
-          <span className="font-bold text-xl text-gray-800 tracking-tight">
-            Projeto<span className="text-green-600">Coletivo</span>
-          </span>
+        <Link href="/" className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <span className="bg-green-600 text-white w-8 h-8 rounded-lg flex items-center justify-center text-sm">PC</span>
+          <span>Projeto Coletivo</span>
         </Link>
 
-        {/* Menu da Direita */}
-        <div className="flex items-center gap-6">
-          
-          {/* Link Carrinho */}
-          <Link href="/checkout" className="relative text-gray-500 hover:text-green-600 transition-colors">
-            <span className="sr-only">Carrinho</span>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-            </svg>
-          </Link>
+        {/* Área do Usuário */}
+        {user ? (
+          <div 
+            className="relative h-full flex items-center" 
+            onMouseLeave={() => setIsMenuOpen(false)}
+          >
+            <button 
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              // Abre ao passar o mouse
+              onMouseEnter={() => setIsMenuOpen(true)}
+              className="flex items-center gap-2 hover:bg-gray-50 p-1 pr-3 rounded-full transition-colors border border-transparent hover:border-gray-200"
+            >
+              <div className="w-8 h-8 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold">
+                {initials}
+              </div>
+              <span className="text-sm font-medium text-gray-700 hidden md:block">
+                {firstName}
+              </span>
+              <span className="text-gray-400 text-xs">▼</span>
+            </button>
 
-          {user ? (
-            // LOGADO
-            <div className="relative">
-              <button 
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="flex items-center gap-3 hover:bg-gray-50 py-1 px-2 rounded-full border border-transparent hover:border-gray-200 transition-all"
+            {/* Menu Dropdown */}
+            {isMenuOpen && (
+              <div 
+                className="absolute right-0 top-full pt-2 w-56 z-50"
+                // Mantém aberto se o mouse estiver sobre o menu (Ponte Invisível)
+                onMouseEnter={() => setIsMenuOpen(true)}
               >
-                <div className="text-right hidden sm:block">
-                  <p className="text-xs text-gray-500 font-medium">Olá,</p>
-                  <p className="text-sm font-bold text-gray-800 leading-none">{displayName.split(' ')[0]}</p>
-                </div>
-                <div className="w-9 h-9 bg-green-100 text-green-700 rounded-full flex items-center justify-center font-bold text-sm border-2 border-white shadow-sm">
-                  {initial}
-                </div>
-              </button>
-
-              {/* Dropdown */}
-              {isMenuOpen && (
-                <div className="absolute right-0 mt-3 w-56 bg-white border border-gray-100 rounded-xl shadow-xl py-2 animate-in fade-in slide-in-from-top-2">
+                <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                   <div className="px-4 py-3 border-b border-gray-50 bg-gray-50/50">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">Conta</p>
+                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Logado como</p>
                     <p className="text-sm font-medium text-gray-900 truncate">{user.email}</p>
                   </div>
                   
-                  <div className="py-1">
-                    <Link href="/admin" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700">
-                      📦 Meus Pedidos
-                    </Link>
-                  </div>
-
-                  <div className="border-t border-gray-50 mt-1 pt-1">
-                    <button 
-                      onClick={() => signout()}
-                      className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  <div className="p-2">
+                    {/* --- NOVO LINK ADICIONADO AQUI 👇 --- */}
+                    <Link 
+                      href="/campaign/new" 
+                      className="block px-3 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 rounded-lg transition-colors flex items-center gap-2 mb-1"
                     >
-                      🚪 Sair
+                      <span>📢</span> Criar Campanha
+                    </Link>
+
+                    <Link 
+                      href="/admin" 
+                      className="block px-3 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <span>📦</span> Meus Pedidos
+                    </Link>
+                    
+                    <button 
+                      onClick={handleLogout}
+                      className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2 mt-1 border-t border-gray-50 pt-2"
+                    >
+                      <span>🚪</span> Sair da Conta
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
-          ) : (
-            // NÃO LOGADO
-            <div className="flex items-center gap-4">
-              <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-green-700">
-                Entrar
-              </Link>
-              <Link href="/login" className="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded-full transition-all shadow-sm hover:shadow-md">
-                Cadastrar
-              </Link>
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Link 
+            href="/login"
+            className="text-sm font-bold text-green-700 hover:text-green-800 hover:bg-green-50 px-4 py-2 rounded-lg transition-colors"
+          >
+            Entrar
+          </Link>
+        )}
       </div>
     </header>
   )
